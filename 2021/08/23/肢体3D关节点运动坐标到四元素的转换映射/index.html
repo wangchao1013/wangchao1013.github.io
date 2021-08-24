@@ -20,8 +20,17 @@
 <meta property="og:image" content="http://example.com/images/1/pitch.gif">
 <meta property="og:image" content="http://example.com/images/1/yaw.gif">
 <meta property="og:image" content="http://example.com/images/1/p1.png">
+<meta property="og:image" content="http://example.com/images/1/image-20210824142023919.png">
+<meta property="og:image" content="http://example.com/images/1/image-20210824141935238.png">
+<meta property="og:image" content="http://example.com/images/1/image-20210824145225659.png">
+<meta property="og:image" content="http://example.com/images/1/image-20210824151732889.png">
+<meta property="og:image" content="http://example.com/images/1/image-20210824144830886.png">
+<meta property="og:image" content="http://example.com/images/1/image-20210824145251012.png">
+<meta property="og:image" content="http://example.com/images/1/image-20210824145020404.png">
+<meta property="og:image" content="http://example.com/images/1/image-20210824145134389.png">
+<meta property="og:image" content="http://example.com/images/1/image-20210824145939739.png">
 <meta property="article:published_time" content="2021-08-23T04:33:02.000Z">
-<meta property="article:modified_time" content="2021-08-24T03:18:36.836Z">
+<meta property="article:modified_time" content="2021-08-24T07:18:33.167Z">
 <meta property="article:author" content="奋斗的小xio生">
 <meta property="article:tag" content="算法">
 <meta property="article:tag" content="肢体驱动">
@@ -208,14 +217,18 @@
 <td><img src="/images/1/yaw.gif" width = "" height = ""></td>
 </tr>
 </tbody></table>
+<p>欧拉角的万向节死锁</p>
 <h2 id="3D坐标映射的实现过程"><a href="#3D坐标映射的实现过程" class="headerlink" title="3D坐标映射的实现过程"></a>3D坐标映射的实现过程</h2><p>肢体驱动所用到的虚拟人骨骼通常是T-pose/A-pose的初始状态，本实现基于T-pose进行（A-pose手臂关节略有不同），T-pose骨骼及相应的关节点3D位置坐标如下：</p>
 <img src="/images/1/p1.png" style="zoom:70%;" />
 
 <p>通过上图我们可以得到该状态下关节点3D坐标，而视频帧中通过姿态估计检测到的关节点坐标可以看作是T-pose关节进行某种旋转之后得到的，所以3D坐标映射过程可以简化为<strong>求取当前状态3D坐标与T-pose初始状态关节点坐标对应关节的四元素信息</strong>的过程。</p>
-<p>该过程可以通过：<strong>3D坐标 -&gt; 轴角 -&gt; 四元素</strong>的转换顺序进行求取，其中轴角的计算公式如下：</p>
+<p>该过程可以通过：<strong>3D坐标 -&gt; 轴角 -&gt; 四元素</strong>的转换顺序进行求取，设转动前后的坐标向量分别为<img src="/images/1/image-20210824142023919.png" alt="image-20210824142023919" style="zoom:70%;" />和<img src="/images/1/image-20210824141935238.png" alt="image-20210824141935238" style="zoom:70%;" />，则轴角<img src="/images/1/image-20210824145225659.png" alt="image-20210824145225659" style="zoom:67%;" />的计算公式如下：</p>
+<img src="/images/1/image-20210824151732889.png" alt="image-20210824151732889" style="zoom:67%;" />
+
+<p>向量<img src="/images/1/image-20210824144830886.png" alt="image-20210824144830886" style="zoom:67%;" />可以看作是向量<img src="/images/1/image-20210824145251012.png" alt="image-20210824145251012" style="zoom:67%;" />绕<img src="/images/1/image-20210824145020404.png" alt="image-20210824145020404" style="zoom:67%;" />轴旋转<img src="/images/1/image-20210824145134389.png" alt="image-20210824145134389" style="zoom:67%;" />之后得到的。具体的实现代码如下：</p>
 <figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">calculation_quaternion</span>(<span class="params">vector_before, vector_after</span>):</span></span><br><span class="line">    <span class="string">&quot;&quot;&quot;</span></span><br><span class="line"><span class="string">    :param vector_before:</span></span><br><span class="line"><span class="string">    :param vector_after:</span></span><br><span class="line"><span class="string">    :return: quaternion is based on unit vector before and after</span></span><br><span class="line"><span class="string">    &quot;&quot;&quot;</span></span><br><span class="line">    axis = cross_product(vector_before, vector_after)</span><br><span class="line">    aa = np.linalg.norm(np.array(axis))</span><br><span class="line">    <span class="keyword">if</span> aa &lt; <span class="number">1.0e-5</span>:</span><br><span class="line">        <span class="keyword">return</span> [<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>]</span><br><span class="line">    angle = math.acos(dot_product(vector_before, vector_after) / normalize(vector_before) / normalize(vector_after))</span><br><span class="line">    aa = [axis, angle]  <span class="comment"># 得到轴角</span></span><br><span class="line">    quaternion = axis_angle_to_quaternion(aa)  <span class="comment"># 轴角到四元素转换</span></span><br><span class="line">    <span class="keyword">return</span> quaternion</span><br></pre></td></tr></table></figure>
 
-<p>其中，轴角到四元素的转换参考前文的介绍的数学转换式：</p>
+<p>其中，轴角到四元素的转换参考前文的介绍的数学转换式：<img src="/images/1/image-20210824145939739.png" alt="image-20210824145939739" style="zoom:67%;" /></p>
 <figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">axis_angle_to_quaternion</span>(<span class="params">aa</span>):</span></span><br><span class="line">    x, y, z = aa[<span class="number">0</span>]</span><br><span class="line">    degree = aa[<span class="number">1</span>]</span><br><span class="line">    <span class="comment"># radian_degree = math.radians(degree / 2) # 弧度转化</span></span><br><span class="line">    radian_degree = degree / <span class="number">2</span></span><br><span class="line">    qx = x * math.sin(radian_degree)</span><br><span class="line">    qy = y * math.sin(radian_degree)</span><br><span class="line">    qz = z * math.sin(radian_degree)</span><br><span class="line">    qw = math.cos(radian_degree)</span><br><span class="line">    <span class="keyword">return</span> [qx, qy, qz, qw]</span><br></pre></td></tr></table></figure>
 
 <p>以上计算只适合独立运动的物体，人体在运动过程中，不同关节之间会相互影响。靠近跟节点的关节会对末端关节产生依赖，也就是说末端关节实在前一个相邻关节运动的基础上再做运动，具体表现是关节去除依赖的向量为原始向量与依赖关节旋转矩阵的乘积：</p>
