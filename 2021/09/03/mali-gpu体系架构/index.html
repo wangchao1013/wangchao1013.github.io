@@ -8,17 +8,20 @@
   <link rel="dns-prefetch" href="http://example.com">
   <title>mali gpu体系架构 | 小xio生的博客</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-  <meta name="description" content="最近要找工作了，花了点时间把之前的东西捡一下，主要是移动端底层代码优化的内容，包括NEON&#x2F;OpenCL以及算法层面上的优化，再次回顾这些内容，希望能有新的认识和收获，先从OpenCL开始了~~">
+  <meta name="description" content="最近要找工作了，花了点时间把之前的东西捡一下，主要是移动端底层代码优化的内容，包括NEON&#x2F;OpenCL以及算法层面上的优化，再次回顾这些内容，希望能有新的认识和收获，先从OpenCL开始了~~ 代码链接：">
 <meta property="og:type" content="article">
 <meta property="og:title" content="mali gpu体系架构">
 <meta property="og:url" content="http://example.com/2021/09/03/mali-gpu%E4%BD%93%E7%B3%BB%E6%9E%B6%E6%9E%84/index.html">
 <meta property="og:site_name" content="小xio生的博客">
-<meta property="og:description" content="最近要找工作了，花了点时间把之前的东西捡一下，主要是移动端底层代码优化的内容，包括NEON&#x2F;OpenCL以及算法层面上的优化，再次回顾这些内容，希望能有新的认识和收获，先从OpenCL开始了~~">
+<meta property="og:description" content="最近要找工作了，花了点时间把之前的东西捡一下，主要是移动端底层代码优化的内容，包括NEON&#x2F;OpenCL以及算法层面上的优化，再次回顾这些内容，希望能有新的认识和收获，先从OpenCL开始了~~ 代码链接：">
 <meta property="og:locale" content="zh_CN">
 <meta property="og:image" content="http://example.com/images/3/gwbj7arv2l.png">
 <meta property="og:image" content="http://example.com/images/3/i2kp6gb0ob.png">
+<meta property="og:image" content="http://example.com/images/3/20210907144742.png">
+<meta property="og:image" content="http://example.com/images/3/1.png">
+<meta property="og:image" content="http://example.com/images/3/2.png">
 <meta property="article:published_time" content="2021-09-03T09:00:08.000Z">
-<meta property="article:modified_time" content="2021-09-06T10:10:58.896Z">
+<meta property="article:modified_time" content="2021-09-07T09:06:37.266Z">
 <meta property="article:author" content="奋斗的小xio生">
 <meta property="article:tag" content="并行计算">
 <meta name="twitter:card" content="summary">
@@ -183,6 +186,7 @@
     <div class="article-entry" itemprop="articleBody">
       
         <p>最近要找工作了，花了点时间把之前的东西捡一下，主要是移动端底层代码优化的内容，包括NEON/OpenCL以及算法层面上的优化，再次回顾这些内容，希望能有新的认识和收获，先从OpenCL开始了~~</p>
+<p>代码链接：</p>
 <span id="more"></span>
 
 <h1 id="mali-gpu体系架构"><a href="#mali-gpu体系架构" class="headerlink" title="mali gpu体系架构"></a>mali gpu体系架构</h1><h2 id="1-GPU中常用的基本概念"><a href="#1-GPU中常用的基本概念" class="headerlink" title="1. GPU中常用的基本概念"></a>1. GPU中常用的基本概念</h2><h3 id="1-1-GPU组成"><a href="#1-1-GPU组成" class="headerlink" title="1.1 GPU组成"></a>1.1 GPU组成</h3><p>GPU所涉及常用名词的解释：</p>
@@ -217,23 +221,50 @@ SIMT（Single instruction, multiple threads）：是同一条指令分多个线�
 <img src="/images/3/i2kp6gb0ob.png" alt="i2kp6gb0ob" style="zoom:80%;" />
 
 <p>Execution Engine（quad）相当于NVIDIA中的Warp，每个Shader Core中EE数量很少。Bifrost中Warp大小是变化的，G76中每个EE可以承载8个线程。</p>
-<h2 id="4-OpenCL编程"><a href="#4-OpenCL编程" class="headerlink" title="4. OpenCL编程"></a>4. OpenCL编程</h2><h3 id="4-1-运行环境及条件"><a href="#4-1-运行环境及条件" class="headerlink" title="4.1 运行环境及条件"></a>4.1 运行环境及条件</h3><ul>
-<li><p>CL/cl.h: <a target="_blank" rel="noopener" href="https://github.com/KhronosGroup/OpenCL-Headers">https://github.com/KhronosGroup/OpenCL-Headers</a></p>
-</li>
-<li><p>OpenCL动态库: /system/vendor/lib/libOpenCL.so（HUAWEI）</p>
-</li>
-<li><p>Adb tool: <a target="_blank" rel="noopener" href="https://developer.android.com/studio/releases/platform-tools">https://developer.android.com/studio/releases/platform-tools</a></p>
-</li>
-<li><p>Android NDK(android-ndk-r21e): <a target="_blank" rel="noopener" href="https://developer.android.com/ndk/downloads">https://developer.android.com/ndk/downloads</a></p>
-</li>
-</ul>
+<h2 id="4-OpenCL编程"><a href="#4-OpenCL编程" class="headerlink" title="4. OpenCL编程"></a>4. OpenCL编程</h2><h3 id="4-1-运行环境及条件"><a href="#4-1-运行环境及条件" class="headerlink" title="4.1 运行环境及条件"></a>4.1 运行环境及条件</h3><p><strong>CL/cl.h</strong>: <a target="_blank" rel="noopener" href="https://github.com/KhronosGroup/OpenCL-Headers">https://github.com/KhronosGroup/OpenCL-Headers</a></p>
+<p><strong>OpenCL动态库</strong>: /system/vendor/lib/libOpenCL.so（HUAWEI）</p>
+<p><strong>Adb tool</strong>: <a target="_blank" rel="noopener" href="https://developer.android.com/studio/releases/platform-tools">https://developer.android.com/studio/releases/platform-tools</a></p>
+<p><strong>Android NDK(android-ndk-r21e)</strong>: <a target="_blank" rel="noopener" href="https://developer.android.com/ndk/downloads">https://developer.android.com/ndk/downloads</a></p>
 <figure class="highlight basic"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">adb push C:\Users\xxx\libs\yuv2rgb_cl /<span class="keyword">data</span>/local/tmp/libs</span><br></pre></td></tr></table></figure>
 
 <p>其中<code>/data/local/tmp/libs</code>是Android中开发者权限可操作目录。</p>
-<h3 id="4-2-OpenCL框架介绍"><a href="#4-2-OpenCL框架介绍" class="headerlink" title="4.2 OpenCL框架介绍"></a>4.2 OpenCL框架介绍</h3><p>参考：</p>
-<p>GPU中的几个基本概念<a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/53763285">https://zhuanlan.zhihu.com/p/53763285</a></p>
-<p>Arm发布Mali-G76 GPU<a target="_blank" rel="noopener" href="https://www.gpuinsight.com/arm_mali_g76/">https://www.gpuinsight.com/arm_mali_g76/</a></p>
-<p>从现代GPU编程角度看SIMD与SIMT<a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/113360369">https://zhuanlan.zhihu.com/p/113360369</a></p>
+<h3 id="4-2-OpenCL框架介绍"><a href="#4-2-OpenCL框架介绍" class="headerlink" title="4.2 OpenCL框架介绍"></a>4.2 OpenCL框架介绍</h3><h3 id="4-2-1-数据并行与任务并行"><a href="#4-2-1-数据并行与任务并行" class="headerlink" title="4.2.1 数据并行与任务并行"></a>4.2.1 数据并行与任务并行</h3><p>数据并行化计算与任务并行化分解可以加快程序的运行速度，如下图：输入数组A/B，得到输出数组C如output所示：</p>
+<img src="/images/3/20210907144742.png" alt="20210907144742" style="zoom:90%;" />
+
+<p>上述过程可以通过以下代码块实现：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span>(<span class="keyword">int</span> i=<span class="number">0</span>; i&lt;<span class="number">4</span>; ++i)&#123;</span><br><span class="line">    C[i*<span class="number">4</span>+<span class="number">0</span>] = A[i*<span class="number">4</span>+<span class="number">0</span>] + B[i*<span class="number">4</span>+<span class="number">0</span>]; <span class="comment">// task A</span></span><br><span class="line">    C[i*<span class="number">4</span>+<span class="number">1</span>] = A[i*<span class="number">4</span>+<span class="number">1</span>] - B[i*<span class="number">4</span>+<span class="number">1</span>]; <span class="comment">// task B</span></span><br><span class="line">    C[i*<span class="number">4</span>+<span class="number">2</span>] = A[i*<span class="number">4</span>+<span class="number">2</span>] * B[i*<span class="number">4</span>+<span class="number">2</span>]; <span class="comment">// task C</span></span><br><span class="line">    C[i*<span class="number">4</span>+<span class="number">3</span>] = A[i*<span class="number">4</span>+<span class="number">3</span>] / B[i*<span class="number">4</span>+<span class="number">3</span>]; <span class="comment">// task D</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>上述过程可以通过数据并行或任务并行分别进行实现：</p>
+<h4 id="a-数据并行（不同的数据使用相同的核函数）"><a href="#a-数据并行（不同的数据使用相同的核函数）" class="headerlink" title="a.数据并行（不同的数据使用相同的核函数）"></a><strong>a.数据并行（不同的数据使用相同的核函数）</strong></h4><p>每一个for循环都由加减乘除4个任务组成，分别为task A、task B、task C和task D。由于循环之间所用到的数据没有依赖关系，所以可以将i=0,1,2,3四个程序块一起运行，将不同的数据给相同的核函数同时运行，理想化得使运行时间缩减到T/4。</p>
+<img src="/images/3/1.png" alt="1" style="zoom:70%;" />
+
+<p>数据并行主要使用OpenCL的API函数是：<code>clEnqueueNDRangeKernel()</code>实现：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ret = <span class="built_in">clEnqueueNDRangeKernel</span>(command_queue, kernel, <span class="number">1</span>, <span class="literal">NULL</span>,&amp;global_item_size, &amp;local_item_size, <span class="number">0</span>, <span class="literal">NULL</span>, <span class="literal">NULL</span>);</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">__kernel <span class="keyword">void</span> <span class="title">dataParallel</span><span class="params">(__global <span class="keyword">float</span>* A, __global <span class="keyword">float</span>* B, __global <span class="keyword">float</span>* C)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="keyword">int</span> base = <span class="number">4</span>*get_global_id(<span class="number">0</span>);</span><br><span class="line">    C[base+<span class="number">0</span>] = A[base+<span class="number">0</span>] + B[base+<span class="number">0</span>];</span><br><span class="line">    C[base+<span class="number">1</span>] = A[base+<span class="number">1</span>] - B[base+<span class="number">1</span>];</span><br><span class="line">    C[base+<span class="number">2</span>] = A[base+<span class="number">2</span>] * B[base+<span class="number">2</span>];</span><br><span class="line">    C[base+<span class="number">3</span>] = A[base+<span class="number">3</span>] / B[base+<span class="number">3</span>];</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="b-任务并行（任务分解为不同核函数并行执行）"><a href="#b-任务并行（任务分解为不同核函数并行执行）" class="headerlink" title="b.任务并行（任务分解为不同核函数并行执行）"></a><strong>b.任务并行（任务分解为不同核函数并行执行）</strong></h4><p>功能函数可以分解为“加减乘除”这四个任务，可以产生“加减乘除”四个核函数，让四个函数同时执行。</p>
+<img src="/images/3/2.png" alt="2" style="zoom:70%;" />
+
+<p>数据化并行使用的OpenCL的API函数是：<code>clEnqueueTask()</code></p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ret = <span class="built_in">clEnqueueTask</span>(command_queue, kernel[i], <span class="number">0</span>, <span class="literal">NULL</span>, <span class="literal">NULL</span>);</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 同一个*.cl文件下分别实现add_parallel/sub_parallel/mul_parallel/div_parallel</span></span><br><span class="line"><span class="function">__kernel <span class="keyword">void</span> <span class="title">add_parallel</span><span class="params">(__global <span class="keyword">float</span> *A, __global <span class="keyword">float</span> *B, __global <span class="keyword">float</span> *C)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="keyword">int</span> base = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">for</span>(<span class="keyword">int</span> i=<span class="number">0</span>;i&lt;<span class="number">4</span>;i++)&#123;</span><br><span class="line">        C[base+i*<span class="number">4</span>] = A[base+i*<span class="number">4</span>] + B[base+i*<span class="number">4</span>]; <span class="comment">// 其他运算同理</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>clEnqueueTask</code> 和 <code>clEnqueueNDRangeKernel</code>的功能都是将核执行命令加入命令队列，而<code>clEnqueueNDRangeKernel</code>可以更好的划分数据，充分利用设备的资源。</p>
+<p>android.mk的编写，cmakelist编写</p>
+<h3 id="4-2-2-OpenCL1-2与2-0比较"><a href="#4-2-2-OpenCL1-2与2-0比较" class="headerlink" title="4.2.2 OpenCL1.2与2.0比较"></a>4.2.2 OpenCL1.2与2.0比较</h3><p><strong>共享虚拟内存</strong></p>
+<p>主机和设备端可以共享复杂数据结构指针，比如：树和链表；以减少花在数据结构转换上的精力。允许在OpenCL内核中使用<strong>数据结构的指针</strong>(比如：链表)，之前版本的OpenCL标准是不支持内核中使用自定义数据结构指针。</p>
+<p><strong>动态并行</strong></p>
+<p>可以在不用主机代码参与的情况下，进行内核的加载，为的就是减小加载内核所产生的瓶颈。</p>
+<p><strong>统一地址空间</strong></p>
+<p>这样同样的函数就可以处理GPU和CPU上的数据，以减少编程的难度。</p>
+<p><strong>C++原子操作</strong></p>
+<p>工作项可以跨越工作组共享数据和设备，可以让更多的算法使用OpenCL实现。</p>
+<h2 id="参考："><a href="#参考：" class="headerlink" title="参考："></a>参考：</h2><p><a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/53763285">GPU中的几个基本概念</a></p>
+<p><a target="_blank" rel="noopener" href="https://www.gpuinsight.com/arm_mali_g76/">Arm发布Mali-G76 GPU</a></p>
+<p><a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/113360369">从现代GPU编程角度看SIMD与SIMT</a></p>
+<p><a target="_blank" rel="noopener" href="https://blog.csdn.net/m0_37857300/article/details/112385592?utm_medium=distribute.pc_relevant.none-task-blog-2~default~baidujs_title~default-0.control&spm=1001.2101.3001.4242">要点初见：OpenCL 2.0 异构计算 [第三版] 知识点整理</a></p>
 
       
 
